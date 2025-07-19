@@ -1,0 +1,51 @@
+# IDE-specific files
+.idea/
+*.swp
+*.swo
+
+# Coverage tools
+.html
+*.html
+
+# Test binaries for projects with -trimpath
+cover.out
+
+# Build output
+bin/
+dist/
+
+# Dependency directories
+vendor/
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment files
+.env
+tmp/
+var/
+
+# Logs and debug files
+*.log
+*.err
+*.out
+debug
+
+# Editor-specific files
+.vscode/
+.idea/workspace.xml
+*.swp
+*.swo
+
+# Go specific
+bin/
+testbin/
+
+# Testing
+*.test
