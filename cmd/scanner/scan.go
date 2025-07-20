@@ -16,10 +16,27 @@ func main() {
 	log.Printf("Starting BLE scan for %s...", scanDuration)
 	log.Println("Turn on your Bluetooth scale now.")
 
-	// Use the simple ScanFor helper function. It will block for the specified duration.
+	// ScanForOne will automatically search for any registered prefixes (e.g., "LUNAR").
+	// It will return as soon as one device is found, or timeout duration, if none.
+	device, err := goscale.ScanForOne(scanDuration)
+	if err != nil {
+		log.Fatalf("Fatal: Scan failed: %v", err)
+	}
+
+	if device != nil {
+		fmt.Println("\n--- Found Supported Device ---")
+		fmt.Printf("   Name: %s\n", device.Name)
+		fmt.Printf("   ID:   %s\n", device.ID)
+		fmt.Printf("   RSSI: %d\n\n", device.RSSI)
+		fmt.Println("-----------------------------")
+	} else {
+		fmt.Println("\n--- Found NO Device ---")
+	}
+
+	// Using the Scan helper function. It will block for the specified duration.
 	// It will automatically search for any registered prefixes (e.g., "MOCK").
-	// Find any device whose name starts with "LUNAR", for example.
-	devices, err := goscale.Scan(scanDuration, "LUNAR")
+	// It will return all found devices matching registered prefixes
+	devices, err := goscale.Scan(scanDuration)
 	if err != nil {
 		log.Fatalf("Fatal: Scan failed: %v", err)
 	}

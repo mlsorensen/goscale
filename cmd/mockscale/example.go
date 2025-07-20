@@ -20,11 +20,14 @@ func main() {
 	log.Println("GoScale CLI Application Starting...")
 
 	// To use the mock, we need to request a device name that matches the prefix
-	// it was registered with ("MOCK").
+	// it was registered with ("MOCK"). In a real program, we would scan for bluetooth
+	// scales and then use its device name to create a new Scale
 	deviceName := "MOCK-Development-Scale"
 	log.Printf("Attempting to create scale instance for device: %s", deviceName)
 
 	// Use the factory to find and create the correct scale implementation.
+	// Again, this device name in a real program would likely come from scanning for
+	// supported devices or a known device name.
 	myScale, err := goscale.NewScaleForDevice(deviceName)
 	if err != nil {
 		log.Fatalf("Fatal: Could not create scale instance: %v", err)
