@@ -14,19 +14,19 @@ import (
 
 // FoundDevice struct remains the same.
 type FoundDevice struct {
-	Name string
-	ID   string
-	RSSI int
+	Name    string
+	Address bluetooth.Address
+	RSSI    int
 }
 
-var adapter = bluetooth.DefaultAdapter
+var BTAdapter = bluetooth.DefaultAdapter
 
 // ScanForOne scans until the first registered scale name is found
 func ScanForOne(duration time.Duration) (*FoundDevice, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 
-	err := tryEnableBTAdapter()
+	err := TryEnableAdapter()
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func ScanForOne(duration time.Duration) (*FoundDevice, error) {
 	prefixesToScan := getRegisteredPrefixes()
 
 	if len(prefixesToScan) == 0 {
-		return nil, errors.New("scan warning: no implementations registered.")
+		return nil, errors.New("scan warning: no implementations registered")
 	}
 	log.Printf("Scanning for devices with prefixes: %v.", prefixesToScan)
 
@@ -49,11 +49,10 @@ func ScanForOne(duration time.Duration) (*FoundDevice, error) {
 		for _, prefix := range prefixesToScan {
 			if strings.HasPrefix(name, prefix) {
 				log.Printf("    --> Found a match! Device: %s", name)
-				id := result.Address.String()
 				found = FoundDevice{
-					Name: name,
-					ID:   id,
-					RSSI: int(result.RSSI),
+					Name:    name,
+					Address: result.Address,
+					RSSI:    int(result.RSSI),
 				}
 				cancel()
 				break
@@ -68,7 +67,7 @@ func ScanForOne(duration time.Duration) (*FoundDevice, error) {
 	go func() {
 		defer wg.Done()
 		log.Println("Starting a blocking scan...")
-		err := adapter.Scan(handler)
+		err := BTAdapter.Scan(handler)
 		if err != nil {
 			scanErrChan <- err
 		}
@@ -77,7 +76,7 @@ func ScanForOne(duration time.Duration) (*FoundDevice, error) {
 	<-ctx.Done()
 
 	log.Println("Stopping scan...")
-	err = adapter.StopScan()
+	err = BTAdapter.StopScan()
 	if err != nil {
 		log.Printf("Warning: failed to stop scan cleanly: %v", err)
 	}
@@ -101,7 +100,7 @@ func ScanForOne(duration time.Duration) (*FoundDevice, error) {
 func Scan(duration time.Duration) ([]FoundDevice, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
-	err := tryEnableBTAdapter()
+	err := TryEnableAdapter()
 	if err != nil {
 		return nil, err
 	}
@@ -129,9 +128,9 @@ func Scan(duration time.Duration) ([]FoundDevice, error) {
 				if _, exists := foundDevices[id]; !exists {
 					log.Printf("    --> Found a match! Device: %s", name)
 					foundDevices[id] = FoundDevice{
-						Name: name,
-						ID:   id,
-						RSSI: int(result.RSSI),
+						Name:    name,
+						Address: result.Address,
+						RSSI:    int(result.RSSI),
 					}
 				}
 				mu.Unlock()
@@ -147,7 +146,7 @@ func Scan(duration time.Duration) ([]FoundDevice, error) {
 	go func() {
 		defer wg.Done()
 		log.Println("Starting a blocking scan...")
-		err := adapter.Scan(handler)
+		err := BTAdapter.Scan(handler)
 		if err != nil {
 			scanErrChan <- err
 		}
@@ -156,7 +155,7 @@ func Scan(duration time.Duration) ([]FoundDevice, error) {
 	<-ctx.Done()
 
 	log.Println("Timeout reached. Stopping scan...")
-	err = adapter.StopScan()
+	err = BTAdapter.StopScan()
 	if err != nil {
 		log.Printf("Warning: failed to stop scan cleanly: %v", err)
 	}
@@ -181,9 +180,9 @@ func Scan(duration time.Duration) ([]FoundDevice, error) {
 	return results, nil
 }
 
-func tryEnableBTAdapter() error {
-	log.Println("Enabling Bluetooth adapter...")
-	err := adapter.Enable()
+func TryEnableAdapter() error {
+	log.Println("Enabling Bluetooth BTAdapter...")
+	err := BTAdapter.Enable()
 	if err == nil || strings.Contains(err.Error(), "already calling Enable") {
 		return nil
 	}

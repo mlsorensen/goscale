@@ -12,28 +12,28 @@ import (
 	// This tells the Go compiler to include the package, which runs its init()
 	// function. The init() function, in turn, calls goscale.Register(). You can
 	// specify specific scales individually or just "all"
-	_ "github.com/mlsorensen/goscale/pkg/scales/all"
+	_ "github.com/mlsorensen/goscale/pkg/scales/lunar"
 )
 
 func main() {
 	log.Println("GoScale CLI Application Starting...")
 
-	// To use the mock, we need to request a device name that matches the prefix
-	// it was registered with ("MOCK"). In a real program, we would scan for bluetooth
-	// scales and then use its device to create a new Scale
-	device := &goscale.FoundDevice{Name: "MOCK-Development-Scale"}
-	log.Printf("Attempting to create scale instance for device: %v", device)
+	// scan for bluetooth scales and then use its device to create a new Scale
+	dev, err := goscale.ScanForOne(10 * time.Second)
+	if err != nil {
+		return
+	}
 
-	// Use the factory to find and create the correct scale implementation.
-	// Again, this device name in a real program would likely come from scanning for
-	// supported devices or a device with known name.
-	myScale, err := goscale.NewScaleForDevice(device)
+	myScale, err := goscale.NewScaleForDevice(dev)
 	if err != nil {
 		log.Fatalf("Fatal: Could not create scale instance: %v", err)
 	}
 	log.Println("Successfully created mock scale instance.")
 
 	// --- Set up graceful shutdown ---
+	// Create a context that can be canceled. When cancel() is called, all
+	// goroutines that select on ctx.Done() will be notified.
+
 	// This goroutine listens for OS signals (like Ctrl+C).
 	// When a signal is caught, it calls cancel() to trigger a clean shutdown.
 	go func() {
@@ -41,7 +41,8 @@ func main() {
 		signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigchan // Block until a signal is received
 		log.Println("Shutdown signal received. Disconnecting...")
-		_ = myScale.Disconnect()
+		myScale.Disconnect()
+		log.Println("Disconnect initiated")
 	}()
 
 	// Connect to the scale. This will return a channel for weight updates.
@@ -59,23 +60,23 @@ func main() {
 	go func() {
 		for {
 			// Wait a few seconds before the first action
-			time.Sleep(10 * time.Second)
+			time.Sleep(4 * time.Second)
 
-			log.Println("--> Sending TARE command to scale...")
-			if err := myScale.Tare(nil, true); err != nil {
+			log.Println("-------------------------> Sending TARE command to scale...")
+			if err := myScale.Tare(true); err != nil {
 				log.Printf("Error taring scale: %v", err)
 			}
 
 			// Wait again
-			time.Sleep(5 * time.Second)
+			//time.Sleep(5 * time.Second)
 
-			log.Println("--> Reading battery level...")
-			batt, err := myScale.ReadBatteryChargePercent(nil)
-			if err != nil {
-				log.Printf("Error reading battery: %v", err)
-			} else {
-				log.Printf("--> Battery level is %d%%", batt)
-			}
+			/*			log.Println("--> Reading battery level...")
+						batt, err := myScale.ReadBatteryChargePercent(ctx)
+						if err != nil {
+							log.Printf("Error reading battery: %v", err)
+						} else {
+							log.Printf("--> Battery level is %d%%", batt)
+						}*/
 		}
 	}()
 
@@ -84,12 +85,19 @@ func main() {
 	// It will automatically exit when the 'weightUpdates' channel is closed.
 	// The channel will be closed by the mock scale's implementation when its
 	// context is canceled (which we do via the signal handler).
+	updates := 0
 	for update := range weightUpdates {
 		if update.Error != nil {
 			log.Printf("Error received on update channel: %v", update.Error)
 			continue
 		}
 		log.Printf("Weight: %.2f %s", update.Value, update.Unit)
+
+		updates++
+		if updates > 100 {
+			_ = myScale.Disconnect()
+			break
+		}
 	}
 
 	// This line will only be reached after the channel is closed.

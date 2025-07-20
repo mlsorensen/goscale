@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+	"tinygo.org/x/bluetooth"
 
 	"github.com/mlsorensen/goscale"
 )
@@ -26,10 +27,15 @@ var _ goscale.Scale = (*MockScale)(nil)
 
 // MockScale is a simulated Bluetooth scale for development.
 type MockScale struct {
+	name         string
+	address      bluetooth.Address
 	mu           sync.Mutex
 	connected    bool
 	batteryLevel uint8
 	weight       float64
+
+	disconnectCtx context.Context
+	disconnect    context.CancelFunc
 
 	// Channels to control the simulation goroutine
 	stopChan      chan struct{}
@@ -37,17 +43,21 @@ type MockScale struct {
 }
 
 // New creates a new, uninitialized MockScale.
-func New() goscale.Scale {
+func New(device *goscale.FoundDevice) goscale.Scale {
 	return &MockScale{
+		name:         device.Name,
+		address:      bluetooth.Address{},
 		batteryLevel: 98,   // Start with a high battery
 		weight:       21.5, // Start with some initial weight
 	}
 }
 
 // Connect starts the simulation.
-func (s *MockScale) Connect(ctx context.Context) (<-chan goscale.WeightUpdate, error) {
+func (s *MockScale) Connect() (<-chan goscale.WeightUpdate, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	s.disconnectCtx, s.disconnect = context.WithCancel(context.Background())
 
 	if s.connected {
 		return nil, fmt.Errorf("mock scale is already connected")
@@ -61,7 +71,7 @@ func (s *MockScale) Connect(ctx context.Context) (<-chan goscale.WeightUpdate, e
 	updates := make(chan goscale.WeightUpdate)
 
 	// Start the simulation goroutine
-	go s.simulate(ctx, updates)
+	go s.simulate(s.disconnectCtx, updates)
 
 	log.Println("MOCK: Connected successfully.")
 	return updates, nil
@@ -118,6 +128,8 @@ func (s *MockScale) Disconnect() error {
 		return nil // Nothing to do
 	}
 
+	s.disconnect()
+
 	log.Println("MOCK: Disconnecting...")
 	if s.stopChan != nil {
 		close(s.stopChan)
@@ -129,7 +141,7 @@ func (s *MockScale) Disconnect() error {
 }
 
 // Tare sends a request to the simulation to zero the weight.
-func (s *MockScale) Tare(ctx context.Context, blocking bool) error {
+func (s *MockScale) Tare(blocking bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

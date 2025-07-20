@@ -20,11 +20,10 @@ type WeightUpdate struct {
 // Scale is the generic interface for a Bluetooth scale.
 // Implementations of this interface will handle communication with a specific model.
 type Scale interface {
-	// Connect establishes a connection to the scale and returns a read-only channel
-	// for weight updates. The context can be used to cancel the connection attempt.
-	// If the connection is lost, the channel will be closed.
-	// A new connection requires calling Connect again.
-	Connect(ctx context.Context) (<-chan WeightUpdate, error)
+	// Connect establishes a connection to the scale. Context should be handled internally
+	// between the connect and disconnect functions. Returns a read-only
+	// channel for weight updates.
+	Connect() (<-chan WeightUpdate, error)
 
 	// Disconnect terminates the connection.
 	Disconnect() error
@@ -32,7 +31,7 @@ type Scale interface {
 	// Tare zeros the scale. If blocking is true, the function will wait for
 	// confirmation from the scale before returning, providing confidence the scale is
 	// zeroed before proceeding
-	Tare(ctx context.Context, blocking bool) error
+	Tare(blocking bool) error
 
 	// SetSleepTimeout sets the auto-off timer for the scale.
 	SetSleepTimeout(ctx context.Context, d time.Duration) error
@@ -44,7 +43,7 @@ type Scale interface {
 // --- Implementation Registry ---
 
 // Factory is a function that creates a new instance of a Scale.
-type Factory func() Scale
+type Factory func(*FoundDevice) Scale
 
 var (
 	registry = make(map[string]Factory)
@@ -68,15 +67,15 @@ func Register(namePrefix string, factory Factory) {
 // NewScaleForDevice finds a registered factory for the given device name and
 // creates a new Scale instance. It matches based on the prefix.
 // Example: A device named "LUNAR-A23B" would match a registered "LUNAR" prefix.
-func NewScaleForDevice(deviceName string) (Scale, error) {
+func NewScaleForDevice(device *FoundDevice) (Scale, error) {
 	regLock.RLock()
 	defer regLock.RUnlock()
 
 	for prefix, factory := range registry {
-		if strings.HasPrefix(deviceName, prefix) {
-			return factory(), nil
+		if strings.HasPrefix(device.Name, prefix) {
+			return factory(device), nil
 		}
 	}
 
-	return nil, fmt.Errorf("no implementation found for device '%s'", deviceName)
+	return nil, fmt.Errorf("no implementation found for device '%s'", device.Name)
 }
