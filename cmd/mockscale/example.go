@@ -62,7 +62,7 @@ func main() {
 			time.Sleep(10 * time.Second)
 
 			log.Println("--> Sending TARE command to scale...")
-			if err := myScale.Tare(nil, true); err != nil {
+			if err := myScale.Tare(true); err != nil {
 				log.Printf("Error taring scale: %v", err)
 			}
 

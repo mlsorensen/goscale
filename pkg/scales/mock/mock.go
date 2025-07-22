@@ -42,6 +42,18 @@ type MockScale struct {
 	tareRequested chan struct{}
 }
 
+func (s *MockScale) IsConnected() bool {
+	return s.connected
+}
+
+func (s *MockScale) DeviceName() string {
+	return s.name
+}
+
+func (s *MockScale) DisplayName() string {
+	return "Mock Scale"
+}
+
 // New creates a new, uninitialized MockScale.
 func New(device *goscale.FoundDevice) goscale.Scale {
 	return &MockScale{

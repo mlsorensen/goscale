@@ -35,6 +35,19 @@ type LunarScale struct {
 	weightUpdateChan chan goscale.WeightUpdate
 
 	lastNotified time.Time
+	isConnected  bool
+}
+
+func (l *LunarScale) IsConnected() bool {
+	return l.isConnected
+}
+
+func (l *LunarScale) DeviceName() string {
+	return l.name
+}
+
+func (l *LunarScale) DisplayName() string {
+	return "Acaia Lunar Scale"
 }
 
 func New(device *goscale.FoundDevice) goscale.Scale {
@@ -78,6 +91,8 @@ func (l *LunarScale) Connect() (<-chan goscale.WeightUpdate, error) {
 		return nil, err
 	}
 
+	l.isConnected = true
+
 	// Start the heartbeat goroutine
 	go func() {
 		for {
@@ -98,8 +113,15 @@ func (l *LunarScale) Connect() (<-chan goscale.WeightUpdate, error) {
 }
 
 func (l *LunarScale) Disconnect() error {
+	err := l.btDevice.Disconnect()
+	if err != nil {
+		// are we still connected or not? who knows
+		return err
+	}
+	close(l.weightUpdateChan)
 	l.disconnectFunc()
-	return l.btDevice.Disconnect()
+	l.isConnected = false
+	return nil
 }
 
 func (l *LunarScale) Tare(blocking bool) error {

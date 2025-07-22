@@ -22,11 +22,20 @@ type WeightUpdate struct {
 type Scale interface {
 	// Connect establishes a connection to the scale. Context should be handled internally
 	// between the connect and disconnect functions. Returns a read-only
-	// channel for weight updates.
+	// channel for weight updates. This channel should be closed on disconnect.
 	Connect() (<-chan WeightUpdate, error)
 
 	// Disconnect terminates the connection.
 	Disconnect() error
+
+	// IsConnected reports the connection status.
+	IsConnected() bool
+
+	// DeviceName should report the name as found during bluetooth scan.
+	DeviceName() string
+
+	// DisplayName should return a user-friendly name for the scale. This could be the model name.
+	DisplayName() string
 
 	// Tare zeros the scale. If blocking is true, the function will wait for
 	// confirmation from the scale before returning, providing confidence the scale is

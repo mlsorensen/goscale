@@ -58,7 +58,7 @@ func main() {
 	// This goroutine will run in the background to interact with the scale
 	// while the main goroutine is busy listening for weight updates.
 	go func() {
-		for {
+		for myScale.IsConnected() {
 			// Wait a few seconds before the first action
 			time.Sleep(10 * time.Second)
 
@@ -94,8 +94,11 @@ func main() {
 		log.Printf("Weight: %.2f %s", update.Value, update.Unit)
 
 		updates++
-		if updates > 100 {
+		if updates > 200 {
 			_ = myScale.Disconnect()
+			break
+		} else if !myScale.IsConnected() {
+			log.Println("Scale is disconnected")
 			break
 		}
 	}
