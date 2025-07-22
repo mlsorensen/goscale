@@ -12,7 +12,7 @@ import (
 	// This tells the Go compiler to include the package, which runs its init()
 	// function. The init() function, in turn, calls goscale.Register(). You can
 	// specify specific scales individually or just "all"
-	_ "github.com/mlsorensen/goscale/pkg/scales/lunar"
+	_ "github.com/mlsorensen/goscale/pkg/scales/all"
 )
 
 func main() {
@@ -62,10 +62,10 @@ func main() {
 			// Wait a few seconds before the first action
 			time.Sleep(10 * time.Second)
 
-			//log.Println("-------------------------> Sending TARE command to scale...")
-			//if err := myScale.Tare(true); err != nil {
-			//	log.Printf("Error taring scale: %v", err)
-			//}
+			log.Println("-------------------------> Sending TARE command to scale...")
+			if err := myScale.Tare(true); err != nil {
+				log.Printf("Error taring scale: %v", err)
+			}
 
 			// Wait again
 			//time.Sleep(5 * time.Second)

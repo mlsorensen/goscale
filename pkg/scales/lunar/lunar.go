@@ -18,7 +18,7 @@ func init() {
 }
 
 // This line is the compile-time check. It will fail to compile if
-// *MockScale ever stops satisfying the goscale.Scale interface.
+// *LunarScale ever stops satisfying the goscale.Scale interface.
 var _ goscale.Scale = (*LunarScale)(nil)
 
 type LunarScale struct {
@@ -115,7 +115,10 @@ func (l *LunarScale) Disconnect() error {
 		// are we still connected or not? who knows
 		return err
 	}
-	close(l.weightUpdateChan)
+	//TODO: mutex
+	if l.weightUpdateChan != nil {
+		close(l.weightUpdateChan)
+	}
 	l.disconnectFunc()
 	l.isConnected = false
 	return nil

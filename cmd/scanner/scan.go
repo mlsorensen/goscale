@@ -26,7 +26,7 @@ func main() {
 	if device != nil {
 		fmt.Println("\n--- Found Supported Device ---")
 		fmt.Printf("   Name: %s\n", device.Name)
-		fmt.Printf("   ID:   %s\n", device.ID)
+		fmt.Printf("   ID:   %s\n", device.Address)
 		fmt.Printf("   RSSI: %d\n\n", device.RSSI)
 		fmt.Println("-----------------------------")
 	} else {
@@ -49,7 +49,7 @@ func main() {
 		fmt.Println("\n--- Found Supported Devices ---")
 		for i, device := range devices {
 			fmt.Printf("%d: Name: %s\n", i+1, device.Name)
-			fmt.Printf("   ID:   %s\n", device.ID)
+			fmt.Printf("   ID:   %s\n", device.Address)
 			fmt.Printf("   RSSI: %d\n\n", device.RSSI)
 		}
 		fmt.Println("-----------------------------")
