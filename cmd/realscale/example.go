@@ -19,6 +19,8 @@ func main() {
 	log.Println("GoScale CLI Application Starting...")
 
 	// scan for bluetooth scales and then use its device to create a new Scale
+	// You don't have to care which brand or model here, it just returns the first supported
+	// scale found.
 	dev, err := goscale.ScanForOne(10 * time.Second)
 	if err != nil {
 		return
@@ -30,10 +32,7 @@ func main() {
 	}
 	log.Println("Successfully created mock scale instance.")
 
-	// --- Set up graceful shutdown ---
-	// Create a context that can be canceled. When cancel() is called, all
-	// goroutines that select on ctx.Done() will be notified.
-
+	// --- Set up a graceful shutdown ---
 	// This goroutine listens for OS signals (like Ctrl+C).
 	// When a signal is caught, it calls cancel() to trigger a clean shutdown.
 	go func() {
@@ -83,8 +82,6 @@ func main() {
 	// --- Main application loop ---
 	// This loop will block and process weight updates as they come in.
 	// It will automatically exit when the 'weightUpdates' channel is closed.
-	// The channel will be closed by the mock scale's implementation when its
-	// context is canceled (which we do via the signal handler).
 	updates := 0
 	for update := range weightUpdates {
 		if update.Error != nil {
