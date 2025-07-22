@@ -11,8 +11,8 @@ type WeightType uint8
 
 const (
 	WeightTypeNet   WeightType = 0 // Net weight (this implies the scale is currently tared)
-	WeightTypeGross WeightType = 1 // Gross weight (pw, possibly "portafilter weight")
-	WeightTypeTare  WeightType = 2 // The value of the tare itself
+	WeightTypeGross WeightType = 1 // Gross weight (pw, possibly "platform weight")
+	WeightTypeTare  WeightType = 2 // ??
 )
 
 func (w WeightType) String() string {
@@ -31,8 +31,8 @@ func (w WeightType) String() string {
 // WeightMessage holds the complete, parsed weight information from the scale.
 type WeightMessage struct {
 	Weight   float64
-	Type     WeightType // Indicates if the weight is Net (tared) or Gross.
-	IsStable bool       // True if the weight reading is stable.
+	Type     WeightType
+	IsStable bool // True if the weight reading is stable.
 }
 
 // decodeWeight parses the 6-byte weight event payload.
@@ -54,7 +54,6 @@ func decodeWeight(payload []byte) (WeightMessage, error) {
 	case 4:
 		divisor = 10000.0
 	default:
-		// Acaia documentation suggests the default is 10.0
 		divisor = 10.0
 	}
 

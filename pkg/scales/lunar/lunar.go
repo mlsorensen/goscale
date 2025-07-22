@@ -69,10 +69,7 @@ func (l *LunarScale) Connect() (<-chan goscale.WeightUpdate, error) {
 
 	l.disconnectCtx, l.disconnectFunc = context.WithCancel(context.Background())
 
-	l.btDevice, err = goscale.BTAdapter.Connect(l.address, bluetooth.ConnectionParams{
-		MaxInterval: bluetooth.Duration(1000),
-		MinInterval: bluetooth.Duration(10),
-	})
+	l.btDevice, err = goscale.BTAdapter.Connect(l.address, bluetooth.ConnectionParams{})
 
 	if err != nil {
 		return nil, err
@@ -141,11 +138,22 @@ func (l *LunarScale) ReadBatteryChargePercent(ctx context.Context) (uint8, error
 
 func (l *LunarScale) sendHeartbeat() error {
 	log.Printf("sending heartbeat")
+	if !l.isConnected {
+		return fmt.Errorf("no heartbeat allowed if not connected")
+	}
+
 	if !l.synced {
-		_, _ = l.writeChar.WriteWithoutResponse(comms.GetStatusCommand)
+		_, err := l.writeChar.Write(comms.GetStatusCommand)
+		if err != nil {
+			log.Printf("Error on heartbeat: %v", err)
+		}
 		time.Sleep(500 * time.Millisecond)
 	} else {
-		_, _ = l.writeChar.WriteWithoutResponse(comms.GetStatusCommand)
+		_, err := l.writeChar.Write(comms.GetStatusCommand)
+		if err != nil {
+			log.Printf("Error on heartbeat: %v", err)
+			l.Disconnect()
+		}
 		time.Sleep(time.Second)
 	}
 

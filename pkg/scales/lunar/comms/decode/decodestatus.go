@@ -27,7 +27,6 @@ func (u Unit) String() string {
 type ScaleMode uint8
 
 // Exact modes can vary by scale model
-// These are common modes.
 const (
 	Mode1Weighing           ScaleMode = 0
 	Mode2DualDisplay        ScaleMode = 1
@@ -102,7 +101,7 @@ func (s SoundSetting) String() string {
 	return "Off"
 }
 
-// KeyDisableSetting represents the scale's key lock timer.
+// KeyDisableSetting represents the scale's key lock timer. Not really sure how to use this.
 type KeyDisableSetting uint8
 
 const (
@@ -131,8 +130,8 @@ func (k KeyDisableSetting) String() string {
 type ResolutionSetting uint8
 
 const (
-	ResolutionLow  ResolutionSetting = 0 // Low precision (e.g., 1g increments)
-	ResolutionHigh ResolutionSetting = 1 // High precision (e.g., 0.1g increments)
+	ResolutionLow  ResolutionSetting = 0 // Low precision (e.g., .1g increments)
+	ResolutionHigh ResolutionSetting = 1 // High precision (e.g., 0.01g increments)
 )
 
 func (r ResolutionSetting) String() string {
@@ -158,7 +157,6 @@ func (c CapacitySetting) String() string {
 }
 
 // StatusMessage holds the parsed settings from a type 8 status event message from an Acaia scale.
-// The fields are derived from the 'scale_status' struct in the Acaia SDK.
 type StatusMessage struct {
 	StatusLength       uint8
 	Battery            float64           // Battery level percentage (0.0-100.0)
@@ -178,8 +176,8 @@ type StatusMessage struct {
 // DecodeStatusMessage parses the 9-byte or 12-byte payload from a type 8 event message
 // and returns a StatusMessage struct.
 func DecodeStatusMessage(payload []byte) (StatusMessage, error) {
-	if len(payload) != 9 && len(payload) != 12 {
-		return StatusMessage{}, fmt.Errorf("invalid payload length: expected 9 or 12, got %d", len(payload))
+	if len(payload) < 9 {
+		return StatusMessage{}, fmt.Errorf("invalid payload length: expected at least 9, got %d", len(payload))
 	}
 
 	msg := StatusMessage{}
@@ -190,22 +188,22 @@ func DecodeStatusMessage(payload []byte) (StatusMessage, error) {
 
 	// Byte 1: Battery and Timer Status
 	// This byte contains two fields packed using bitwise operations.
-	// n_battery (7 bits): The battery level (0-100).
-	// b_timer_start (1 bit): Indicates if the timer is running.
-	msg.Battery = float64(payload[1] & 0x7F)       // Lower 7 bits for battery
-	msg.IsTimerRunning = (payload[1]>>7)&0x01 == 1 // Most significant bit for timer status
+	// (7 bits): The battery level (0-100).
+	// (1 bit): Indicates if the timer is running.
+	msg.Battery = float64(payload[1] & 0x7F)
+	msg.IsTimerRunning = (payload[1]>>7)&0x01 == 1
 
 	// Byte 2: Unit and Countdown Status
-	// n_unit (7 bits): The unit of measurement.
-	// b_cd_start (1 bit): Indicates if the countdown is active.
-	msg.Unit = Unit(payload[2] & 0x7F)                 // Lower 7 bits for unit
-	msg.IsCountdownRunning = (payload[2]>>7)&0x01 == 1 // Most significant bit for countdown status
+	// (7 bits): The unit of measurement.
+	// (1 bit): Indicates if the countdown is active.
+	msg.Unit = Unit(payload[2] & 0x7F)
+	msg.IsCountdownRunning = (payload[2]>>7)&0x01 == 1
 
 	// Byte 3: Scale Mode and Tare Status
-	// n_scale_mode (7 bits): The current mode of the scale.
-	// b_tare (1 bit): Indicates if the scale is tared.
-	msg.ScaleMode = ScaleMode(payload[3] & 0x7F) // Lower 7 bits for scale mode
-	msg.IsTared = (payload[3]>>7)&0x01 == 1      // Most significant bit for tare status
+	// (7 bits): The current mode of the scale.
+	// (1 bit): Indicates if the scale is tared.
+	msg.ScaleMode = ScaleMode(payload[3] & 0x7F)
+	msg.IsTared = (payload[3]>>7)&0x01 == 1
 
 	// Byte 4: Sleep Timer Setting
 	msg.SleepTimerSetting = AutoOffSetting(payload[4])
@@ -217,27 +215,10 @@ func DecodeStatusMessage(payload []byte) (StatusMessage, error) {
 	msg.SoundSetting = SoundSetting(payload[6])
 
 	// Byte 7: Resolution Setting
-	msg.ResolutionSetting = ResolutionSetting(payload[7])
+	msg.ResolutionSetting = ResolutionSetting(payload[7] ^ 1)
 
 	// Byte 8: Capacity Setting
 	msg.CapacitySetting = CapacitySetting(payload[8])
-
-	// Check for optional timer data if the payload is 12 bytes long
-	if len(payload) == 12 {
-		// The timer value is a 16-bit little-endian integer.
-		// It's constructed from payload[9] (minutes), payload[10] (seconds), and payload[11] (deciseconds).
-		// For simplicity, we can combine them into a single value. A more complex struct could also be used.
-		// Based on the Java SDK, the timer value is often packed.
-		// Let's assume a simple seconds representation for now from the extra bytes.
-		// For example, if it represents time in some way.
-		// A common pattern is minutes and seconds. Let's assume payload[9] is minutes and payload[10] is seconds
-		// The structure tm_event in Java suggests minutes, seconds, and deciseconds.
-		minutes := uint16(payload[9])
-		seconds := uint16(payload[10])
-		// deciseconds := uint16(payload[11])
-
-		msg.TimerValue = (minutes * 60) + seconds
-	}
 
 	return msg, nil
 }

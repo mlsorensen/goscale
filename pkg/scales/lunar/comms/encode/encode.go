@@ -1,6 +1,6 @@
 package encode
 
-// Constants for the Acaia communication protocol.
+// Constants for the communication protocol.
 const (
 	// HeaderPrefix1 is the first byte of the message header.
 	HeaderPrefix1 byte = 0xEF
@@ -33,7 +33,7 @@ func Encode(messageType byte, payload []byte) []byte {
 	return message
 }
 
-// BuildIdentifyCommand now uses the CORRECT payload.
+// BuildIdentifyCommand creates the command to identify
 func BuildIdentifyCommand() []byte {
 	const cmdIdentify byte = 11 // 0x0B
 	payload := []byte{
@@ -44,7 +44,7 @@ func BuildIdentifyCommand() []byte {
 	return Encode(cmdIdentify, payload)
 }
 
-// BuildNotificationRequestCommand now uses the CORRECT payload with the length prefix.
+// BuildNotificationRequestCommand creates a notification request command
 func BuildNotificationRequestCommand() []byte {
 	const cmdEventRequest byte = 12 // 0x0C
 
