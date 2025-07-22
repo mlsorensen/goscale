@@ -1,10 +1,13 @@
 package comms
 
+/*
+
 import (
 	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/mlsorensen/goscale/pkg/scales/lunar/comms/encode"
 )
 
 // AcaiaPacket is the interface for all decoded packets.
@@ -112,7 +115,7 @@ func decodeTime(payload []byte) (float64, error) {
 // It assumes the 'data' buffer contains one complete message frame.
 func ParseNotification(data []byte) (AcaiaPacket, error) {
 	// 1. Find the start of a message (EF DD)
-	idx := bytes.Index(data, []byte{HeaderPrefix1, HeaderPrefix2})
+	idx := bytes.Index(data, []byte{encode.HeaderPrefix1, encode.HeaderPrefix2})
 	if idx == -1 {
 		return nil, errors.New("message header not found")
 	}
@@ -123,7 +126,7 @@ func ParseNotification(data []byte) (AcaiaPacket, error) {
 		return nil, errors.New("incomplete message frame: too short for header and length")
 	}
 
-	// 3. Calculate expected message length from the length byte.
+	// 3. Calculate the expected message length from the length byte.
 	// The Python code's calculation is: total_len = payload_len_byte + 5
 	payloadLen := int(frame[3])
 	expectedFrameLen := payloadLen + 5
@@ -251,4 +254,4 @@ func parseButtonPress(payload []byte) (AcaiaPacket, error) {
 		p.Button = "unknown"
 	}
 	return p, nil
-}
+}*/

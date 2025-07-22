@@ -60,12 +60,12 @@ func main() {
 	go func() {
 		for {
 			// Wait a few seconds before the first action
-			time.Sleep(4 * time.Second)
+			time.Sleep(10 * time.Second)
 
-			log.Println("-------------------------> Sending TARE command to scale...")
-			if err := myScale.Tare(true); err != nil {
-				log.Printf("Error taring scale: %v", err)
-			}
+			//log.Println("-------------------------> Sending TARE command to scale...")
+			//if err := myScale.Tare(true); err != nil {
+			//	log.Printf("Error taring scale: %v", err)
+			//}
 
 			// Wait again
 			//time.Sleep(5 * time.Second)

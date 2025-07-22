@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/mlsorensen/goscale"
 	"github.com/mlsorensen/goscale/pkg/scales/lunar/comms"
+	"github.com/mlsorensen/goscale/pkg/scales/lunar/comms/decode"
 	"log"
 	"time"
 	"tinygo.org/x/bluetooth"
@@ -25,12 +26,15 @@ type LunarScale struct {
 	address        bluetooth.Address
 	disconnectCtx  context.Context
 	disconnectFunc context.CancelFunc
+	synced         bool
 
 	btDevice   bluetooth.Device
 	writeChar  bluetooth.DeviceCharacteristic
 	notifyChar bluetooth.DeviceCharacteristic
 
 	weightUpdateChan chan goscale.WeightUpdate
+
+	lastNotified time.Time
 }
 
 func New(device *goscale.FoundDevice) goscale.Scale {
@@ -68,42 +72,24 @@ func (l *LunarScale) Connect() (<-chan goscale.WeightUpdate, error) {
 	}
 
 	log.Println("setting up notifications")
-
-	err = l.notifyChar.EnableNotifications(l.handleNotification)
+	err = l.setupNotifications()
 	if err != nil {
 		_ = l.Disconnect()
-		return nil, fmt.Errorf("failed to enable notifications: %w", err)
-	}
-
-	log.Println("initiating handshake")
-	_, err = l.writeChar.WriteWithoutResponse(comms.BuildIdentifyCommand())
-	if err != nil {
-		_ = l.Disconnect()
-		return nil, fmt.Errorf("failed to send initial handshake: %w", err)
+		return nil, err
 	}
 
 	// Start the heartbeat goroutine
 	go func() {
-		ticker := time.NewTicker(3 * time.Second)
-		defer ticker.Stop()
-
-		var consecutiveErrors int = 0
-
 		for {
 			select {
-			case <-ticker.C:
-				// Send heartbeat signal to the scale
-				if err := l.sendHeartbeat(); err != nil {
-					consecutiveErrors++
-					log.Printf("Error sending heartbeat: %v", err)
-					if consecutiveErrors >= 1 {
-						log.Printf("Reached limit to heartbeat errors, disconnecting")
-						_ = l.Disconnect()
-					}
-				}
 			case <-l.disconnectCtx.Done():
 				_ = l.Disconnect()
 				return
+			default:
+				// Send heartbeat signal to the scale
+				if err := l.sendHeartbeat(); err != nil {
+					log.Printf("Error sending heartbeat: %v", err)
+				}
 			}
 		}
 	}()
@@ -117,7 +103,7 @@ func (l *LunarScale) Disconnect() error {
 }
 
 func (l *LunarScale) Tare(blocking bool) error {
-	_, err := l.writeChar.WriteWithoutResponse(comms.BuildTareCommand())
+	_, err := l.writeChar.WriteWithoutResponse(comms.TareCommand)
 	return err
 }
 
@@ -133,17 +119,38 @@ func (l *LunarScale) ReadBatteryChargePercent(ctx context.Context) (uint8, error
 
 func (l *LunarScale) sendHeartbeat() error {
 	log.Printf("sending heartbeat")
-	_, err := l.writeChar.WriteWithoutResponse(comms.BuildGetStatusCommand())
+	if !l.synced {
+		_, _ = l.writeChar.WriteWithoutResponse(comms.GetStatusCommand)
+		time.Sleep(500 * time.Millisecond)
+	} else {
+		_, _ = l.writeChar.WriteWithoutResponse(comms.GetStatusCommand)
+		time.Sleep(time.Second)
+	}
 
-	_, err = l.writeChar.WriteWithoutResponse(comms.BuildNotificationRequestCommand())
+	if l.lastNotified.IsZero() || time.Now().After(l.lastNotified.Add(time.Second)) {
+		log.Println("setting up notifications again")
+		_ = l.setupNotifications()
+	}
+	return nil
+}
+
+func (l *LunarScale) setupNotifications() error {
+	err := l.notifyChar.EnableNotifications(l.handleNotification)
 	if err != nil {
-		_ = l.Disconnect()
+		return fmt.Errorf("failed to enable notifications: %w", err)
+	}
+
+	log.Println("initiating handshake")
+	_, err = l.writeChar.WriteWithoutResponse(comms.IdentifyCommand)
+	if err != nil {
+		return fmt.Errorf("failed to send initial handshake: %w", err)
+	}
+
+	_, err = l.writeChar.WriteWithoutResponse(comms.NotificationRequestCommand)
+	if err != nil {
 		return fmt.Errorf("failed to send notification request: %w", err)
 	}
 
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -187,29 +194,35 @@ func (l *LunarScale) setupCharacteristics() error {
 // It assumes one notification callback contains one complete message.
 func (l *LunarScale) handleNotification(buf []byte) {
 	// Attempt to parse the entire buffer as a single message.
-	packet, err := comms.ParseNotification(buf)
+	msg, err := decode.DecodeNotification(buf)
 	if err != nil {
 		log.Printf("[HANDLER] Failed to parse notification: %v. Data: % X", err, buf)
 		return
 	}
 
 	// If we get here, 'packet' is a valid, decoded message.
-	log.Printf("[HANDLER] Decoded packet: %#v", packet)
+	//log.Printf("[HANDLER] Decoded packet: %#v", msg)
 
 	// Use a type switch to handle the specific, decoded packet type.
-	switch p := packet.(type) {
-	case comms.WeightPacket:
-		log.Printf("--> Weight Update: %.2f", p.Weight)
+	switch t := msg.(type) {
+	case decode.WeightMessage:
+		//log.Printf("--> Weight Update: %v", t)
 		// Send the update to the user's channel.
-		l.weightUpdateChan <- goscale.WeightUpdate{Value: p.Weight}
-	case comms.UnhandledPacket:
+		l.weightUpdateChan <- goscale.WeightUpdate{Value: t.Weight}
+		l.lastNotified = time.Now()
+	case decode.StatusMessage:
+		l.synced = true
+		log.Printf("----> Got settings update: %v", t)
+	case decode.DeviceInfoMessage:
+		log.Printf("---> Got device info: %v", t)
+	case decode.UnhandledMessage:
 		// This is the updated logging case
-		if p.MsgType != nil {
+		if t.MsgType != nil {
 			// It was an unhandled nested message (from command 12)
-			log.Printf("--> Unhandled Nested Message. Type: %d. Raw Frame: % X", *p.MsgType, p.RawFrame)
+			log.Printf("--> Unhandled Nested Message. Type: %d. Raw Frame: % X", *t.MsgType, t.RawFrame)
 		} else {
 			// It was an unhandled top-level command
-			log.Printf("--> Unhandled Command. ID: 0x%X. Raw Frame: % X", p.CommandID, p.RawFrame)
+			log.Printf("--> Unhandled Command. ID: 0x%X. Raw Frame: % X", t.CommandID, t.RawFrame)
 		}
 	default:
 		// This default case is a fallback for unexpected parsed types
