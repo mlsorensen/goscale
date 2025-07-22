@@ -178,7 +178,7 @@ func (a *AkuScale) handleNotification(buf []byte) {
 	if !ok {
 		log.Printf("unable to decode raw data from notification")
 	}
-	log.Printf("Got weight update: %.1f", weight)
+	a.weightUpdateChan <- goscale.WeightUpdate{Value: weight}
 }
 
 func (a *AkuScale) setupNotifications() error {

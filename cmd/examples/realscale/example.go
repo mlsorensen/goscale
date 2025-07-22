@@ -30,7 +30,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Fatal: Could not create scale instance: %v", err)
 	}
-	log.Println("Successfully created mock scale instance.")
+	log.Println("Successfully created scale instance.")
 
 	// --- Set up a graceful shutdown ---
 	// This goroutine listens for OS signals (like Ctrl+C).
