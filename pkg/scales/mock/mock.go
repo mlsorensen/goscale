@@ -24,6 +24,11 @@ func init() {
 // This line is the compile-time check. It will fail to compile if
 // *MockScale ever stops satisfying the goscale.Scale interface.
 var _ goscale.Scale = (*MockScale)(nil)
+var features = goscale.ScaleFeatures{
+	Tare:           true,
+	BatteryPercent: true,
+	SleepTimeout:   true,
+}
 
 // MockScale is a simulated Bluetooth scale for development.
 type MockScale struct {
@@ -31,7 +36,7 @@ type MockScale struct {
 	address      bluetooth.Address
 	mu           sync.Mutex
 	connected    bool
-	batteryLevel uint8
+	batteryLevel float64
 	weight       float64
 
 	disconnectCtx context.Context
@@ -40,6 +45,10 @@ type MockScale struct {
 	// Channels to control the simulation goroutine
 	stopChan      chan struct{}
 	tareRequested chan struct{}
+}
+
+func (a *MockScale) GetFeatures() goscale.ScaleFeatures {
+	return features
 }
 
 func (s *MockScale) IsConnected() bool {
@@ -59,7 +68,7 @@ func New(device *goscale.FoundDevice) goscale.Scale {
 	return &MockScale{
 		name:         device.Name,
 		address:      bluetooth.Address{},
-		batteryLevel: 98,   // Start with a high battery
+		batteryLevel: .98,  // Start with a high battery
 		weight:       21.5, // Start with some initial weight
 	}
 }
@@ -175,15 +184,19 @@ func (s *MockScale) Tare(blocking bool) error {
 }
 
 // SetSleepTimeout just logs the action.
-func (s *MockScale) SetSleepTimeout(ctx context.Context, d time.Duration) error {
-	log.Printf("MOCK: SetSleepTimeout called with duration %s", d)
+func (s *MockScale) AdvanceSleepTimeout() error {
+	log.Printf("MOCK: SetSleepTimeout called")
 	return nil
 }
 
 // ReadBatteryChargePercent returns the simulated battery level.
-func (s *MockScale) ReadBatteryChargePercent(ctx context.Context) (uint8, error) {
+func (s *MockScale) GetBatteryChargePercent() (float64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	log.Println("MOCK: Reading battery level.")
 	return s.batteryLevel, nil
+}
+
+func (s *MockScale) GetSleepTimeout() string {
+	return "never"
 }

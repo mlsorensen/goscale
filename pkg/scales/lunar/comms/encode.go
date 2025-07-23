@@ -1,12 +1,4 @@
-package encode
-
-// Constants for the communication protocol.
-const (
-	// HeaderPrefix1 is the first byte of the message header.
-	HeaderPrefix1 byte = 0xEF
-	// HeaderPrefix2 is the second byte of the message header.
-	HeaderPrefix2 byte = 0xDD
-)
+package comms
 
 // Encode creates an encoded message for Lunar
 func Encode(messageType byte, payload []byte) []byte {
@@ -84,4 +76,11 @@ func BuildGetStatusCommand() []byte {
 	payload := []byte{0x00}
 
 	return Encode(cmdGetStatus, payload)
+}
+
+func BuildAutoOffCommand(setting AutoOffSetting) []byte {
+	const cmdSetSetting = 10
+	payload := []byte{0x00, 0x01, byte(setting)}
+
+	return Encode(10, payload)
 }

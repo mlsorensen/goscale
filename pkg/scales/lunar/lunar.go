@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/mlsorensen/goscale"
 	"github.com/mlsorensen/goscale/pkg/scales/lunar/comms"
-	"github.com/mlsorensen/goscale/pkg/scales/lunar/comms/decode"
 	"log"
 	"time"
 	"tinygo.org/x/bluetooth"
@@ -20,6 +19,12 @@ func init() {
 // This line is the compile-time check. It will fail to compile if
 // *LunarScale ever stops satisfying the goscale.Scale interface.
 var _ goscale.Scale = (*LunarScale)(nil)
+
+var features = goscale.ScaleFeatures{
+	Tare:           true,
+	BatteryPercent: true,
+	SleepTimeout:   true,
+}
 
 type LunarScale struct {
 	name           string
@@ -36,6 +41,12 @@ type LunarScale struct {
 
 	lastNotified time.Time
 	isConnected  bool
+
+	status comms.StatusMessage
+}
+
+func (a *LunarScale) GetFeatures() goscale.ScaleFeatures {
+	return features
 }
 
 func (l *LunarScale) IsConnected() bool {
@@ -48,6 +59,10 @@ func (l *LunarScale) DeviceName() string {
 
 func (l *LunarScale) DisplayName() string {
 	return "Acaia Lunar Scale"
+}
+
+func (l *LunarScale) GetSleepTimeout() string {
+	return l.status.SleepTimerSetting.String()
 }
 
 func New(device *goscale.FoundDevice) goscale.Scale {
@@ -129,14 +144,21 @@ func (l *LunarScale) Tare(blocking bool) error {
 	return err
 }
 
-func (l *LunarScale) SetSleepTimeout(ctx context.Context, d time.Duration) error {
-	//TODO implement me
-	panic("implement me")
+func (l *LunarScale) AdvanceSleepTimeout() error {
+	timeout := comms.AutoOffDisabled
+	if l.status.SleepTimerSetting != 5 {
+		timeout = l.status.SleepTimerSetting + 1
+	}
+
+	_, err := l.writeChar.WriteWithoutResponse(comms.BuildAutoOffCommand(timeout))
+	if err != nil {
+		return fmt.Errorf("error while writing new sleep timeout: %v", err)
+	}
+	return nil
 }
 
-func (l *LunarScale) ReadBatteryChargePercent(ctx context.Context) (uint8, error) {
-	//TODO implement me
-	panic("implement me")
+func (l *LunarScale) GetBatteryChargePercent() (float64, error) {
+	return l.status.Battery, nil
 }
 
 func (l *LunarScale) sendHeartbeat() error {
@@ -227,7 +249,7 @@ func (l *LunarScale) setupCharacteristics() error {
 // It assumes one notification callback contains one complete message.
 func (l *LunarScale) handleNotification(buf []byte) {
 	// Attempt to parse the entire buffer as a single message.
-	msg, err := decode.DecodeNotification(buf)
+	msg, err := comms.DecodeNotification(buf)
 	if err != nil {
 		log.Printf("[HANDLER] Failed to parse notification: %v. Data: % X", err, buf)
 		return
@@ -238,17 +260,18 @@ func (l *LunarScale) handleNotification(buf []byte) {
 
 	// Use a type switch to handle the specific, decoded packet type.
 	switch t := msg.(type) {
-	case decode.WeightMessage:
+	case comms.WeightMessage:
 		//log.Printf("--> Weight Update: %v", t)
 		// Send the update to the user's channel.
 		l.weightUpdateChan <- goscale.WeightUpdate{Value: t.Weight}
 		l.lastNotified = time.Now()
-	case decode.StatusMessage:
+	case comms.StatusMessage:
 		l.synced = true
+		l.status = t
 		log.Printf("----> Got settings update: %v", t)
-	case decode.DeviceInfoMessage:
+	case comms.DeviceInfoMessage:
 		log.Printf("---> Got device info: %v", t)
-	case decode.UnhandledMessage:
+	case comms.UnhandledMessage:
 		// This is the updated logging case
 		if t.MsgType != nil {
 			// It was an unhandled nested message (from command 12)

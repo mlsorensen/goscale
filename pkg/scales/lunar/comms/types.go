@@ -1,8 +1,6 @@
-package decode
+package comms
 
-import (
-	"fmt"
-)
+import "fmt"
 
 // Unit represents the unit of measurement for the scale.
 type Unit uint8
@@ -12,15 +10,39 @@ const (
 	UnitOunces Unit = 5 // Standard ounces
 )
 
-func (u Unit) String() string {
-	switch u {
-	case UnitGrams:
-		return "grams"
-	case UnitOunces:
-		return "ounces"
-	default:
-		return fmt.Sprintf("Unknown Unit (%d)", u)
-	}
+// Constants for the communication protocol.
+const (
+	// HeaderPrefix1 is the first byte of the message header.
+	HeaderPrefix1 byte = 0xEF
+	// HeaderPrefix2 is the second byte of the message header.
+	HeaderPrefix2 byte = 0xDD
+)
+
+type LunarMessage interface{}
+
+type UnhandledMessage struct {
+	CommandID byte
+	MsgType   *byte // Can be nil if not a nested message
+	Payload   []byte
+	RawFrame  []byte // Add this field
+}
+
+// String returns a formatted version string, e.g., "1.0.18".
+func (v FirmwareVersion) String() string {
+	return fmt.Sprintf("%d.%d.%d", v.Main, v.Sub, v.Add)
+}
+
+// FirmwareVersion holds the main, sub, and additional version numbers for the device firmware.
+type FirmwareVersion struct {
+	Main uint8
+	Sub  uint8
+	Add  uint8
+}
+
+// DeviceInfoMessage holds the parsed device information from a type 7 info event message.
+type DeviceInfoMessage struct {
+	Firmware      FirmwareVersion
+	IsPasswordSet bool
 }
 
 // ScaleMode represents the operational mode of the scale.
@@ -35,6 +57,46 @@ const (
 	Mode5EspressoEarlyTimer ScaleMode = 4
 	Mode6AutoTareOnly       ScaleMode = 5
 )
+
+// WeightType indicates the type of weight being reported.
+type WeightType uint8
+
+const (
+	WeightTypeNet   WeightType = 0 // Net weight (this implies the scale is currently tared)
+	WeightTypeGross WeightType = 1 // Gross weight (pw, possibly "platform weight")
+	WeightTypeTare  WeightType = 2 // ??
+)
+
+func (w WeightType) String() string {
+	switch w {
+	case WeightTypeNet:
+		return "Net"
+	case WeightTypeGross:
+		return "Gross"
+	case WeightTypeTare:
+		return "Tare"
+	default:
+		return fmt.Sprintf("Unknown (%d)", w)
+	}
+}
+
+// WeightMessage holds the complete, parsed weight information from the scale.
+type WeightMessage struct {
+	Weight   float64
+	Type     WeightType
+	IsStable bool // True if the weight reading is stable.
+}
+
+func (u Unit) String() string {
+	switch u {
+	case UnitGrams:
+		return "grams"
+	case UnitOunces:
+		return "ounces"
+	default:
+		return fmt.Sprintf("Unknown Unit (%d)", u)
+	}
+}
 
 func (m ScaleMode) String() string {
 	switch m {
@@ -171,54 +233,4 @@ type StatusMessage struct {
 	ResolutionSetting  ResolutionSetting // Display resolution setting
 	CapacitySetting    CapacitySetting   // Scale capacity setting
 	TimerValue         uint16            // Timer value in seconds, if present
-}
-
-// DecodeStatusMessage parses the 9-byte or 12-byte payload from a type 8 event message
-// and returns a StatusMessage struct.
-func DecodeStatusMessage(payload []byte) (StatusMessage, error) {
-	if len(payload) < 9 {
-		return StatusMessage{}, fmt.Errorf("invalid payload length: expected at least 9, got %d", len(payload))
-	}
-
-	msg := StatusMessage{}
-
-	// Byte 0: Status Length
-	// The length of the status payload itself.
-	msg.StatusLength = payload[0]
-
-	// Byte 1: Battery and Timer Status
-	// This byte contains two fields packed using bitwise operations.
-	// (7 bits): The battery level (0-100).
-	// (1 bit): Indicates if the timer is running.
-	msg.Battery = float64(payload[1] & 0x7F)
-	msg.IsTimerRunning = (payload[1]>>7)&0x01 == 1
-
-	// Byte 2: Unit and Countdown Status
-	// (7 bits): The unit of measurement.
-	// (1 bit): Indicates if the countdown is active.
-	msg.Unit = Unit(payload[2] & 0x7F)
-	msg.IsCountdownRunning = (payload[2]>>7)&0x01 == 1
-
-	// Byte 3: Scale Mode and Tare Status
-	// (7 bits): The current mode of the scale.
-	// (1 bit): Indicates if the scale is tared.
-	msg.ScaleMode = ScaleMode(payload[3] & 0x7F)
-	msg.IsTared = (payload[3]>>7)&0x01 == 1
-
-	// Byte 4: Sleep Timer Setting
-	msg.SleepTimerSetting = AutoOffSetting(payload[4])
-
-	// Byte 5: Key Disable Setting
-	msg.KeyDisableSetting = KeyDisableSetting(payload[5])
-
-	// Byte 6: Sound Setting
-	msg.SoundSetting = SoundSetting(payload[6])
-
-	// Byte 7: Resolution Setting
-	msg.ResolutionSetting = ResolutionSetting(payload[7] ^ 1)
-
-	// Byte 8: Capacity Setting
-	msg.CapacitySetting = CapacitySetting(payload[8])
-
-	return msg, nil
 }

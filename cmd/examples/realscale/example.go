@@ -70,7 +70,7 @@ func main() {
 			//time.Sleep(5 * time.Second)
 
 			/*			log.Println("--> Reading battery level...")
-						batt, err := myScale.ReadBatteryChargePercent(ctx)
+						batt, err := myScale.GetBatteryChargePercent(ctx)
 						if err != nil {
 							log.Printf("Error reading battery: %v", err)
 						} else {

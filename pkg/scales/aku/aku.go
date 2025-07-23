@@ -34,11 +34,19 @@ type AkuScale struct {
 // *AkuScale ever stops satisfying the goscale.Scale interface.
 var _ goscale.Scale = (*AkuScale)(nil)
 
+var features = goscale.ScaleFeatures{
+	Tare: true,
+}
+
 func New(device *goscale.FoundDevice) goscale.Scale {
 	return &AkuScale{
 		name:    device.Name,
 		address: device.Address,
 	}
+}
+
+func (a *AkuScale) GetFeatures() goscale.ScaleFeatures {
+	return features
 }
 
 func (a *AkuScale) Connect() (<-chan goscale.WeightUpdate, error) {
@@ -126,12 +134,17 @@ func (a *AkuScale) Tare(blocking bool) error {
 	return err
 }
 
-func (a *AkuScale) SetSleepTimeout(ctx context.Context, d time.Duration) error {
+func (a *AkuScale) AdvanceSleepTimeout() error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (a *AkuScale) ReadBatteryChargePercent(ctx context.Context) (uint8, error) {
+func (a *AkuScale) GetSleepTimeout() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (a *AkuScale) GetBatteryChargePercent() (float64, error) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -24,15 +24,20 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Scale App")
 	dev, err := goscale.ScanForOne(10 * time.Second)
+
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	myScale, err := goscale.NewScaleForDevice(dev)
 	if err != nil {
 		log.Fatalf("Fatal: Could not create scale instance: %v", err)
 	}
+
 	displayNameLabel := widget.NewLabel(myScale.DisplayName())
 	weightLabel := widget.NewLabel("")
+	batteryLabel := widget.NewLabel("")
+	sleepTimeoutLabel := widget.NewLabel("")
 	var wg sync.WaitGroup
 	tareButton := widget.NewButton("Tare", func() {
 		log.Println("-------------------------> Sending TARE command to scale...")
@@ -40,10 +45,19 @@ func main() {
 			log.Printf("Error taring scale: %v", err)
 		}
 	})
+
+	adjSleepButton := widget.NewButton("Adjust Sleep Timer", func() {
+		log.Println("advancing sleep timer")
+		if err := myScale.AdvanceSleepTimeout(); err != nil {
+			log.Printf("Error advancing sleep timer: %v", err)
+		}
+	})
+
 	var shutdown chan os.Signal
 	shutdown = make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 	wg.Add(2)
+
 	go func() {
 		defer wg.Done()
 		for sig := range shutdown {
@@ -51,6 +65,9 @@ func main() {
 			a.Quit()
 		}
 	}()
+
+	features := myScale.GetFeatures()
+
 	var weightUpdates <-chan goscale.WeightUpdate
 	go func() {
 		defer wg.Done()
@@ -65,23 +82,49 @@ func main() {
 				continue
 			}
 			fyne.Do(func() {
-				weightLabel.SetText(fmt.Sprintf("%.2f %s", update.Value, update.Unit))
+				weightLabel.SetText(fmt.Sprintf("weight: %.2f %s", update.Value, update.Unit))
+				if features.BatteryPercent {
+					battPct, _ := myScale.GetBatteryChargePercent()
+					batteryLabel.SetText(fmt.Sprintf("battery: %.1f%%", battPct))
+				}
+				if features.SleepTimeout {
+					sleepTimeoutLabel.SetText(fmt.Sprintf("sleep timeout: %s", myScale.GetSleepTimeout()))
+				}
 			})
 		}
 		if err := myScale.Disconnect(); err != nil {
 			log.Printf("Error disconnecting from scale: %v", err)
 		}
 	}()
-	w.SetContent(container.NewVBox(
-		displayNameLabel,
-		weightLabel,
-		tareButton,
-	))
+
+	ctr := container.NewVBox()
+	ctr.Add(displayNameLabel)
+	ctr.Add(weightLabel)
+
+	if features.BatteryPercent {
+		ctr.Add(batteryLabel)
+	}
+
+	if features.SleepTimeout {
+		ctr.Add(sleepTimeoutLabel)
+	}
+
+	if features.Tare {
+		ctr.Add(tareButton)
+	}
+
+	if features.SleepTimeout {
+		ctr.Add(adjSleepButton)
+	}
+
+	w.SetContent(ctr)
+
 	go func() {
 		wg.Wait()
 		if err := myScale.Disconnect(); err != nil {
 			log.Printf("Error disconnecting from scale: %v", err)
 		}
 	}()
+
 	w.ShowAndRun()
 }

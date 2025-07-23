@@ -1,11 +1,9 @@
 package goscale
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 )
 
 // WeightUpdate represents a single reading from the scale.
@@ -15,6 +13,13 @@ type WeightUpdate struct {
 	Value float64
 	Unit  string
 	Error error
+}
+
+// ScaleFeatures is used to advertise the functions a scale supports.
+type ScaleFeatures struct {
+	Tare           bool
+	BatteryPercent bool
+	SleepTimeout   bool
 }
 
 // Scale is the generic interface for a Bluetooth scale.
@@ -37,16 +42,22 @@ type Scale interface {
 	// DisplayName should return a user-friendly name for the scale. This could be the model name.
 	DisplayName() string
 
+	// GetFeatures returns the ScaleFeatures supported by scale
+	GetFeatures() ScaleFeatures
+
 	// Tare zeros the scale. If blocking is true, the function will wait for
 	// confirmation from the scale before returning, providing confidence the scale is
 	// zeroed before proceeding
 	Tare(blocking bool) error
 
-	// SetSleepTimeout sets the auto-off timer for the scale.
-	SetSleepTimeout(ctx context.Context, d time.Duration) error
+	// AdvanceSleepTimeout advances sleep timer to next setting applicable to scale
+	AdvanceSleepTimeout() error
 
-	// ReadBatteryChargePercent returns the current battery level as a percentage (0-100).
-	ReadBatteryChargePercent(ctx context.Context) (uint8, error)
+	// GetSleepTimeout returns the current sleep timeout as a string
+	GetSleepTimeout() string
+
+	// GetBatteryChargePercent returns the current battery level as a float percentage (0-1.0).
+	GetBatteryChargePercent() (float64, error)
 }
 
 // --- Implementation Registry ---
