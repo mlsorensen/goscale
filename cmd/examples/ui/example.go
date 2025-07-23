@@ -53,6 +53,15 @@ func main() {
 		}
 	})
 
+	beepFunc := func() {
+		if myScale.GetBeep() {
+			_ = myScale.SetBeep(false)
+		} else {
+			_ = myScale.SetBeep(true)
+		}
+	}
+	beepButton := widget.NewButton("", beepFunc)
+
 	var shutdown chan os.Signal
 	shutdown = make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
@@ -90,6 +99,9 @@ func main() {
 				if features.SleepTimeout {
 					sleepTimeoutLabel.SetText(fmt.Sprintf("sleep timeout: %s", myScale.GetSleepTimeout()))
 				}
+				if features.Beep {
+					beepButton.SetText(fmt.Sprintf("Beep %s", enabledDisabled(myScale.GetBeep())))
+				}
 			})
 		}
 		if err := myScale.Disconnect(); err != nil {
@@ -117,6 +129,10 @@ func main() {
 		ctr.Add(adjSleepButton)
 	}
 
+	if features.Beep {
+		ctr.Add(beepButton)
+	}
+
 	w.SetContent(ctr)
 
 	go func() {
@@ -127,4 +143,11 @@ func main() {
 	}()
 
 	w.ShowAndRun()
+}
+
+func enabledDisabled(enabled bool) string {
+	if enabled {
+		return "enabled"
+	}
+	return "disabled"
 }

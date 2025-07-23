@@ -20,6 +20,7 @@ type ScaleFeatures struct {
 	Tare           bool
 	BatteryPercent bool
 	SleepTimeout   bool
+	Beep           bool
 }
 
 // Scale is the generic interface for a Bluetooth scale.
@@ -58,6 +59,12 @@ type Scale interface {
 
 	// GetBatteryChargePercent returns the current battery level as a float percentage (0-1.0).
 	GetBatteryChargePercent() (float64, error)
+
+	// GetBeep() returns whether the scale's beep functionality is enabled.
+	GetBeep() bool
+
+	// SetBeep enables or disables the scale's beep based on the provided boolean value.
+	SetBeep(bool) error
 }
 
 // --- Implementation Registry ---

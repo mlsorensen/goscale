@@ -24,6 +24,7 @@ var features = goscale.ScaleFeatures{
 	Tare:           true,
 	BatteryPercent: true,
 	SleepTimeout:   true,
+	Beep:           true,
 }
 
 type LunarScale struct {
@@ -45,7 +46,7 @@ type LunarScale struct {
 	status comms.StatusMessage
 }
 
-func (a *LunarScale) GetFeatures() goscale.ScaleFeatures {
+func (l *LunarScale) GetFeatures() goscale.ScaleFeatures {
 	return features
 }
 
@@ -155,6 +156,18 @@ func (l *LunarScale) AdvanceSleepTimeout() error {
 		return fmt.Errorf("error while writing new sleep timeout: %v", err)
 	}
 	return nil
+}
+
+func (l *LunarScale) SetBeep(beep bool) error {
+	_, err := l.writeChar.WriteWithoutResponse(comms.BuildSetBeepCommand(beep))
+	if err != nil {
+		return fmt.Errorf("error while writing new beep setting: %v", err)
+	}
+	return nil
+}
+
+func (l *LunarScale) GetBeep() bool {
+	return l.status.SoundSetting.Boolean()
 }
 
 func (l *LunarScale) GetBatteryChargePercent() (float64, error) {

@@ -202,3 +202,13 @@ func (a *AkuScale) setupNotifications() error {
 
 	return nil
 }
+
+func (a *AkuScale) SetBeep(b bool) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (a *AkuScale) GetBeep() bool {
+	//TODO implement me
+	panic("implement me")
+}

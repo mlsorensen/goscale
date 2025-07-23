@@ -78,9 +78,18 @@ func BuildGetStatusCommand() []byte {
 	return Encode(cmdGetStatus, payload)
 }
 
+// BuildAutoOffCommand creates the command to adjust the auto-off timer
 func BuildAutoOffCommand(setting AutoOffSetting) []byte {
-	const cmdSetSetting = 10
 	payload := []byte{0x00, 0x01, byte(setting)}
+	return Encode(10, payload)
+}
 
+// BuildSetBeepCommand creates the command to enable/disable beep
+func BuildSetBeepCommand(beep bool) []byte {
+	payload := []byte{0x00, 0x05, 0x00}
+	if beep {
+		payload = []byte{0x00, 0x05, 0x01}
+
+	}
 	return Encode(10, payload)
 }

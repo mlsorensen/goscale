@@ -47,7 +47,7 @@ type MockScale struct {
 	tareRequested chan struct{}
 }
 
-func (a *MockScale) GetFeatures() goscale.ScaleFeatures {
+func (s *MockScale) GetFeatures() goscale.ScaleFeatures {
 	return features
 }
 
@@ -199,4 +199,14 @@ func (s *MockScale) GetBatteryChargePercent() (float64, error) {
 
 func (s *MockScale) GetSleepTimeout() string {
 	return "never"
+}
+
+func (s *MockScale) SetBeep(b bool) error {
+	log.Println("BEEP")
+	return nil
+}
+
+func (s *MockScale) GetBeep() bool {
+	//TODO implement me
+	panic("implement me")
 }

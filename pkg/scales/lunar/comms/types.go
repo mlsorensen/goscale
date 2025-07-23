@@ -163,6 +163,13 @@ func (s SoundSetting) String() string {
 	return "Off"
 }
 
+func (s SoundSetting) Boolean() bool {
+	if s == SoundOn {
+		return true
+	}
+	return false
+}
+
 // KeyDisableSetting represents the scale's key lock timer. Not really sure how to use this.
 type KeyDisableSetting uint8
 
