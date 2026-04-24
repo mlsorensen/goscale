@@ -10,6 +10,7 @@ import (
 	_ "github.com/mlsorensen/goscale/pkg/scales/lunar"
 	_ "github.com/mlsorensen/goscale/pkg/scales/mock"
 	_ "github.com/mlsorensen/goscale/pkg/scales/themis"
+	_ "github.com/mlsorensen/goscale/pkg/scales/umbra"
 	// When you add an [model] scale, you would add this line:
 	// _ "github.com/mlsorensen/goscale/pkg/scales/[model]"
 )
