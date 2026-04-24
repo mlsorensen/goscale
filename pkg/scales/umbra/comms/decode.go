@@ -121,26 +121,42 @@ func decodeWeight(payload []byte) (WeightMessage, error) {
 	}, nil
 }
 
+// DecodeStatusMessage parses the Umbra's 13-byte status payload.
+// Layout (per status_event_umbra in the Acaia Android SDK):
+//
+//	0  n_status_length
+//	1  n_battery
+//	2  n_setting_sleep
+//	3  n_setting_beep
+//	4  n_setting_unit
+//	5  n_setting_resol
+//	6  n_setting_magic_relay_sense
+//	7  n_setting_magic_relay_beep
+//	8  n_setting_fw_main
+//	9  n_setting_fw_sub
+//	10 n_setting_fw_add
+//	11 reserved1
+//	12 reserved2
 func DecodeStatusMessage(payload []byte) (StatusMessage, error) {
-	if len(payload) < 9 {
-		return StatusMessage{}, fmt.Errorf("invalid payload length: expected at least 9, got %d", len(payload))
+	if len(payload) < 11 {
+		return StatusMessage{}, fmt.Errorf("invalid payload length: expected at least 11, got %d", len(payload))
 	}
 
-	msg := StatusMessage{}
-	msg.StatusLength = payload[0]
-	msg.Battery = float64(payload[1] & 0x7F)
-	msg.IsTimerRunning = (payload[1]>>7)&0x01 == 1
-	msg.Unit = Unit(payload[2] & 0x7F)
-	msg.IsCountdownRunning = (payload[2]>>7)&0x01 == 1
-	msg.ScaleMode = ScaleMode(payload[3] & 0x7F)
-	msg.IsTared = (payload[3]>>7)&0x01 == 1
-	msg.SleepTimerSetting = AutoOffSetting(payload[4])
-	msg.KeyDisableSetting = KeyDisableSetting(payload[5])
-	msg.SoundSetting = SoundSetting(payload[6])
-	msg.ResolutionSetting = ResolutionSetting(payload[7] ^ 1)
-	msg.CapacitySetting = CapacitySetting(payload[8])
-
-	return msg, nil
+	return StatusMessage{
+		StatusLength:      payload[0],
+		Battery:           float64(payload[1]),
+		SleepTimerSetting: AutoOffSetting(payload[2]),
+		SoundSetting:      SoundSetting(payload[3]),
+		Unit:              Unit(payload[4]),
+		ResolutionSetting: ResolutionSetting(payload[5]),
+		MagicRelaySense:   payload[6],
+		MagicRelayBeep:    payload[7],
+		Firmware: FirmwareVersion{
+			Main: payload[8],
+			Sub:  payload[9],
+			Add:  payload[10],
+		},
+	}, nil
 }
 
 func DecodeDeviceInfoMessage(payload []byte) (DeviceInfoMessage, error) {

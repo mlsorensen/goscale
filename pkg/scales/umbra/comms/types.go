@@ -3,11 +3,15 @@ package comms
 import "fmt"
 
 // Unit represents the unit of measurement for the scale.
+//
+// Umbra uses a different unit-byte mapping than Lunar (Lunar: g=2, oz=5;
+// Umbra reports g=0). The ounce mapping below is an educated guess — toggle
+// the unit on the scale and watch the status to confirm.
 type Unit uint8
 
 const (
-	UnitGrams  Unit = 2
-	UnitOunces Unit = 5
+	UnitGrams  Unit = 0
+	UnitOunces Unit = 1
 )
 
 const (
@@ -107,31 +111,42 @@ func (m ScaleMode) String() string {
 	}
 }
 
+// AutoOffSetting represents the Umbra's combined sleep / auto-off timer
+// setting. The Umbra distinguishes "sleep" (display off, scale stays on)
+// from "auto-off" (powers off entirely) and packs both into one enum.
+// Values come from AUTO_OFF_SETTING_UMBRA in the Acaia Android SDK.
 type AutoOffSetting uint8
 
 const (
-	AutoOffDisabled AutoOffSetting = 0
-	AutoOff5Min     AutoOffSetting = 1
-	AutoOff10Min    AutoOffSetting = 2
-	AutoOff20Min    AutoOffSetting = 3
-	AutoOff30Min    AutoOffSetting = 4
-	AutoOff60Min    AutoOffSetting = 5
+	AutoOffDisabled  AutoOffSetting = 0 // No timer
+	AutoOffSleep5M   AutoOffSetting = 1 // Sleep after 5 minutes
+	AutoOffSleep10M  AutoOffSetting = 2 // Sleep after 10 minutes
+	AutoOffSleep30M  AutoOffSetting = 3 // Sleep after 30 minutes
+	AutoOffPower5M   AutoOffSetting = 4 // Power off after 5 minutes
+	AutoOffPower10M  AutoOffSetting = 5 // Power off after 10 minutes
+	AutoOffPower30M  AutoOffSetting = 6 // Power off after 30 minutes
+	AutoOffSleep1M   AutoOffSetting = 7 // Sleep after 1 minute
+	AutoOffMaxSetting               = AutoOffSleep1M
 )
 
 func (s AutoOffSetting) String() string {
 	switch s {
 	case AutoOffDisabled:
 		return "Disabled"
-	case AutoOff5Min:
-		return "5 Minutes"
-	case AutoOff10Min:
-		return "10 Minutes"
-	case AutoOff20Min:
-		return "20 Minutes"
-	case AutoOff30Min:
-		return "30 Minutes"
-	case AutoOff60Min:
-		return "60 Minutes"
+	case AutoOffSleep1M:
+		return "Sleep after 1m"
+	case AutoOffSleep5M:
+		return "Sleep after 5m"
+	case AutoOffSleep10M:
+		return "Sleep after 10m"
+	case AutoOffSleep30M:
+		return "Sleep after 30m"
+	case AutoOffPower5M:
+		return "Power off after 5m"
+	case AutoOffPower10M:
+		return "Power off after 10m"
+	case AutoOffPower30M:
+		return "Power off after 30m"
 	default:
 		return fmt.Sprintf("Unknown Setting (%d)", s)
 	}
@@ -207,18 +222,18 @@ func (c CapacitySetting) String() string {
 	return "1000g"
 }
 
+// StatusMessage holds the Umbra's settings status. The Umbra reports a
+// distinct 13-byte payload from the Lunar (separate per-field bytes, no
+// packed flag bits), with extra fields for magic-relay and firmware version.
+// See ScaleProtocol.status_event_umbra in the Acaia Android SDK.
 type StatusMessage struct {
-	StatusLength       uint8
-	Battery            float64
-	IsTimerRunning     bool
-	Unit               Unit
-	IsCountdownRunning bool
-	ScaleMode          ScaleMode
-	IsTared            bool
-	SleepTimerSetting  AutoOffSetting
-	KeyDisableSetting  KeyDisableSetting
-	SoundSetting       SoundSetting
-	ResolutionSetting  ResolutionSetting
-	CapacitySetting    CapacitySetting
-	TimerValue         uint16
+	StatusLength      uint8
+	Battery           float64
+	SleepTimerSetting AutoOffSetting
+	SoundSetting      SoundSetting
+	Unit              Unit
+	ResolutionSetting ResolutionSetting
+	MagicRelaySense   uint8
+	MagicRelayBeep    uint8
+	Firmware          FirmwareVersion
 }

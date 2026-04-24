@@ -151,7 +151,7 @@ func (u *UmbraScale) Tare(blocking bool) error {
 
 func (u *UmbraScale) AdvanceSleepTimeout() error {
 	timeout := comms.AutoOffDisabled
-	if u.status.SleepTimerSetting != 5 {
+	if u.status.SleepTimerSetting != comms.AutoOffMaxSetting {
 		timeout = u.status.SleepTimerSetting + 1
 	}
 

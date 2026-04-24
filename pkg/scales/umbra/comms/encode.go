@@ -63,15 +63,26 @@ func BuildGetStatusCommand() []byte {
 	return Encode(cmdGetStatus, payload)
 }
 
+// Setting IDs come from the Acaia SDK's ESETTING_ITEM enum. The Umbra has its
+// own setting ID space distinct from the Lunar:
+//   e_setting_umbra_sleep = 6
+//   e_setting_umbra_beep  = 7
+// (cf. AcaiaSettingCommandSpec.java in the official Android SDK)
+const (
+	settingIDUmbraSleep byte = 6
+	settingIDUmbraBeep  byte = 7
+)
+
 func BuildAutoOffCommand(setting AutoOffSetting) []byte {
-	payload := []byte{0x00, 0x01, byte(setting)}
+	payload := []byte{0x00, settingIDUmbraSleep, byte(setting)}
 	return Encode(10, payload)
 }
 
 func BuildSetBeepCommand(beep bool) []byte {
-	payload := []byte{0x00, 0x05, 0x00}
+	value := byte(0x00)
 	if beep {
-		payload = []byte{0x00, 0x05, 0x01}
+		value = 0x01
 	}
+	payload := []byte{0x00, settingIDUmbraBeep, value}
 	return Encode(10, payload)
 }
