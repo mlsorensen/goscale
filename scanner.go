@@ -3,6 +3,7 @@ package goscale
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"slices"
 	"strings"
@@ -70,6 +71,10 @@ func ScanForOne(duration time.Duration) (*FoundDevice, error) {
 		err := BTAdapter.Scan(handler)
 		if err != nil {
 			scanErrChan <- err
+			// Wake the main goroutine immediately rather than waiting for
+			// the scan timeout. Without this we'd sit silently until ctx
+			// fires.
+			cancel()
 		}
 	}()
 
@@ -149,6 +154,10 @@ func Scan(duration time.Duration) ([]FoundDevice, error) {
 		err := BTAdapter.Scan(handler)
 		if err != nil {
 			scanErrChan <- err
+			// Wake the main goroutine immediately rather than waiting for
+			// the scan timeout. Without this we'd sit silently until ctx
+			// fires.
+			cancel()
 		}
 	}()
 
@@ -178,6 +187,33 @@ func Scan(duration time.Duration) ([]FoundDevice, error) {
 
 	log.Printf("Scan processing finished. Found %d unique matching device(s).", len(results))
 	return results, nil
+}
+
+// ScanAndConnect scans for any registered scale, looks up the matching
+// implementation, and connects. Returns the live Scale and its weight-update
+// channel on success. Equivalent to ScanForOne + NewScaleForDevice +
+// Scale.Connect — packaged because that's the typical "find and connect to
+// the first available scale" call.
+func ScanAndConnect(scanTimeout time.Duration) (Scale, <-chan WeightUpdate, error) {
+	dev, err := ScanForOne(scanTimeout)
+	if err != nil {
+		return nil, nil, err
+	}
+	if dev == nil || dev.Name == "" {
+		return nil, nil, errors.New("scan: no scale found")
+	}
+
+	s, err := NewScaleForDevice(dev)
+	if err != nil {
+		return nil, nil, fmt.Errorf("scan: %w", err)
+	}
+
+	updates, err := s.Connect()
+	if err != nil {
+		return nil, nil, fmt.Errorf("scan: connect: %w", err)
+	}
+
+	return s, updates, nil
 }
 
 func TryEnableAdapter() error {
