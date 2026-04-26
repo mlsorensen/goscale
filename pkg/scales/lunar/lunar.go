@@ -103,8 +103,18 @@ func (l *LunarScale) Connect() (<-chan goscale.WeightUpdate, error) {
 		_ = l.Disconnect()
 		return nil, err
 	}
+	l.lastNotified = time.Now()
 
 	l.isConnected = true
+
+	// Fast disconnect detection via the BLE link's HCI Disconnection
+	// Complete event. Without this we'd only notice the link is dead when
+	// the next heartbeat Write times out.
+	goscale.BTAdapter.SetConnectHandler(func(d bluetooth.Device, connected bool) {
+		if !connected && l.disconnectFunc != nil {
+			l.disconnectFunc()
+		}
+	})
 
 	// Start the heartbeat goroutine
 	go func() {
@@ -126,18 +136,22 @@ func (l *LunarScale) Connect() (<-chan goscale.WeightUpdate, error) {
 }
 
 func (l *LunarScale) Disconnect() error {
-	err := l.btDevice.Disconnect()
-	if err != nil {
-		// are we still connected or not? who knows
-		return err
+	// Idempotent — multiple paths (heartbeat error, external driver) can
+	// race into Disconnect. Closing the update channel twice panics.
+	if !l.isConnected {
+		return nil
 	}
-	//TODO: mutex
+	l.isConnected = false
+
+	err := l.btDevice.Disconnect()
 	if l.weightUpdateChan != nil {
 		close(l.weightUpdateChan)
+		l.weightUpdateChan = nil
 	}
-	l.disconnectFunc()
-	l.isConnected = false
-	return nil
+	if l.disconnectFunc != nil {
+		l.disconnectFunc()
+	}
+	return err
 }
 
 func (l *LunarScale) Tare(blocking bool) error {
@@ -195,7 +209,10 @@ func (l *LunarScale) sendHeartbeat() error {
 		time.Sleep(time.Second)
 	}
 
-	if l.lastNotified.IsZero() || time.Now().After(l.lastNotified.Add(time.Second)) {
+	// Re-run handshake after a stall (was 1s; too aggressive on slower
+	// transports — the repeated Identify/NotificationRequest commands appear
+	// to disrupt the scale's notification flow while it's still warming up).
+	if !l.lastNotified.IsZero() && time.Now().After(l.lastNotified.Add(5*time.Second)) {
 		log.Println("setting up notifications again")
 		_ = l.setupNotifications()
 	}
@@ -203,18 +220,28 @@ func (l *LunarScale) sendHeartbeat() error {
 }
 
 func (l *LunarScale) setupNotifications() error {
+	// Negotiate a larger ATT MTU. On platforms like macOS this happens
+	// automatically; on TinyGo/HCI it does not and the scale refuses to
+	// stream larger messages (e.g. StatusMessage) because they don't fit
+	// inside the default 23-byte ATT MTU.
+	if mtu, err := l.writeChar.GetMTU(); err != nil {
+		log.Printf("MTU negotiation failed (continuing with default): %v", err)
+	} else {
+		log.Printf("negotiated MTU: %d", mtu)
+	}
+
 	err := l.notifyChar.EnableNotifications(l.handleNotification)
 	if err != nil {
 		return fmt.Errorf("failed to enable notifications: %w", err)
 	}
 
 	log.Println("initiating handshake")
-	_, err = l.writeChar.WriteWithoutResponse(comms.IdentifyCommand)
+	_, err = l.writeChar.Write(comms.IdentifyCommand)
 	if err != nil {
 		return fmt.Errorf("failed to send initial handshake: %w", err)
 	}
 
-	_, err = l.writeChar.WriteWithoutResponse(comms.NotificationRequestCommand)
+	_, err = l.writeChar.Write(comms.NotificationRequestCommand)
 	if err != nil {
 		return fmt.Errorf("failed to send notification request: %w", err)
 	}
@@ -261,6 +288,10 @@ func (l *LunarScale) setupCharacteristics() error {
 // handleNotification is the callback for all incoming BLE data.
 // It assumes one notification callback contains one complete message.
 func (l *LunarScale) handleNotification(buf []byte) {
+	// Any valid traffic from the scale counts as "still alive" — update
+	// lastNotified so the heartbeat doesn't re-run the handshake.
+	l.lastNotified = time.Now()
+
 	// Attempt to parse the entire buffer as a single message.
 	msg, err := comms.DecodeNotification(buf)
 	if err != nil {
@@ -277,7 +308,6 @@ func (l *LunarScale) handleNotification(buf []byte) {
 		//log.Printf("--> Weight Update: %v", t)
 		// Send the update to the user's channel.
 		l.weightUpdateChan <- goscale.WeightUpdate{Value: t.Weight}
-		l.lastNotified = time.Now()
 	case comms.StatusMessage:
 		l.synced = true
 		l.status = t

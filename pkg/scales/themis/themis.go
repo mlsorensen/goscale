@@ -86,17 +86,31 @@ func (t *ThemisScale) Connect() (<-chan goscale.WeightUpdate, error) {
 
 	t.connected = true
 
-	// start the connectivity monitor
+	// Fast disconnect detection via the BLE link's HCI Disconnection
+	// Complete event. The handler cancels our context; the watchdog
+	// goroutine below picks it up and runs Disconnect off the bluetooth
+	// event thread.
+	goscale.BTAdapter.SetConnectHandler(func(d bluetooth.Device, connected bool) {
+		if !connected && t.disconnectFunc != nil {
+			t.disconnectFunc()
+		}
+	})
+
+	// Watchdog: react to context cancel (external Disconnect or HCI
+	// disconnect event) or to a longer no-notifications fallback.
 	go func() {
+		const idleLimit = 30 * time.Second
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-t.disconnectCtx.Done():
 				_ = t.Disconnect()
 				return
-			default:
-				// If we haven't received notifications in a while, disconnect
-				if time.Now().After(t.lastNotified.Add(time.Second)) {
+			case <-ticker.C:
+				if time.Now().After(t.lastNotified.Add(idleLimit)) {
 					_ = t.Disconnect()
+					return
 				}
 			}
 		}
@@ -106,18 +120,29 @@ func (t *ThemisScale) Connect() (<-chan goscale.WeightUpdate, error) {
 }
 
 func (t *ThemisScale) Disconnect() error {
+	// Idempotent: the connectivity-monitor goroutine can race itself
+	// (timeout check → Disconnect → ctx.Done case → Disconnect) and also
+	// races the external scale.Driver disconnect path. Closing
+	// weightUpdateChan twice panics.
+	if !t.connected {
+		return nil
+	}
+	t.connected = false
+
 	err := t.btDevice.Disconnect()
 	if err != nil {
-		// are we still connected or not? who knows
-		return err
+		// Even if the BLE disconnect failed, treat the channel/context
+		// teardown as authoritative — we won't be sending on the channel
+		// any more from this side.
 	}
-	//TODO: mutex
 	if t.weightUpdateChan != nil {
 		close(t.weightUpdateChan)
+		t.weightUpdateChan = nil
 	}
-	t.disconnectFunc()
-	t.connected = false
-	return nil
+	if t.disconnectFunc != nil {
+		t.disconnectFunc()
+	}
+	return err
 }
 
 func (t *ThemisScale) IsConnected() bool {

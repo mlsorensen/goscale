@@ -106,23 +106,35 @@ func (u *UmbraScale) Connect() (<-chan goscale.WeightUpdate, error) {
 	u.lastNotified = time.Now()
 	u.isConnected = true
 
-	// Connectivity watchdog: the Umbra streams notifications continuously
-	// without needing a heartbeat. If we go too long without hearing from it,
-	// treat the link as dead.
+	// Fast disconnect detection: hook the BLE link's HCI Disconnection
+	// Complete event (fires within ~2s of the scale powering off via the
+	// link supervision timeout). The handler simply cancels our context;
+	// a watchdog goroutine then runs Disconnect off the bluetooth event
+	// thread to avoid recursing back into the bluetooth lib.
+	goscale.BTAdapter.SetConnectHandler(func(d bluetooth.Device, connected bool) {
+		if !connected && u.disconnectFunc != nil {
+			u.disconnectFunc()
+		}
+	})
+
+	// Watchdog: react to either an externally-triggered Disconnect (via
+	// disconnectCtx) or a long stretch of silence (fallback in case the
+	// HCI disconnect event doesn't fire for some reason).
 	go func() {
-		const idleLimit = 10 * time.Second
+		const idleLimit = 30 * time.Second
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
 		for {
 			select {
 			case <-u.disconnectCtx.Done():
 				_ = u.Disconnect()
 				return
-			default:
+			case <-t.C:
 				if time.Now().After(u.lastNotified.Add(idleLimit)) {
 					log.Println("Umbra: no notifications for", idleLimit, "— disconnecting")
 					_ = u.Disconnect()
 					return
 				}
-				time.Sleep(time.Second)
 			}
 		}
 	}()
@@ -131,17 +143,23 @@ func (u *UmbraScale) Connect() (<-chan goscale.WeightUpdate, error) {
 }
 
 func (u *UmbraScale) Disconnect() error {
-	err := u.btDevice.Disconnect()
-	if err != nil {
-		return err
+	// Idempotent — multiple producers (watchdog goroutine, ctx.Done case,
+	// external scale.Driver) can race into Disconnect. Closing the update
+	// channel twice panics.
+	if !u.isConnected {
+		return nil
 	}
+	u.isConnected = false
+
+	err := u.btDevice.Disconnect()
 	if u.weightUpdateChan != nil {
 		close(u.weightUpdateChan)
 		u.weightUpdateChan = nil
 	}
-	u.disconnectFunc()
-	u.isConnected = false
-	return nil
+	if u.disconnectFunc != nil {
+		u.disconnectFunc()
+	}
+	return err
 }
 
 func (u *UmbraScale) Tare(blocking bool) error {
